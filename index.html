@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Op naar de marathon — bartlopen</title>
+    <meta name="description" content="Persoonlijk 18-weken marathonschema (3:30–3:45) met coaching, stats en badges." />
+    <meta name="theme-color" content="#0b0a0d" />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Op naar de marathon" />
+    <link rel="stylesheet" href="styles.css?v=1" />
+  </head>
+  <body>
+    <div id="splash" class="splash" aria-hidden="true">
+      <div class="splash-inner">
+        <span class="splash-mark">bl</span>
+        <span class="splash-word">bartlopen</span>
+        <span class="splash-tag">RUN COACH</span>
+      </div>
+    </div>
+    <canvas id="confetti" aria-hidden="true"></canvas>
+
+    <div class="app-shell">
+      <header class="topbar">
+        <button class="icon-button hidden" id="backButton" type="button" aria-label="Terug">
+          <span aria-hidden="true">‹</span>
+        </button>
+        <div class="topbar-title">
+          <p class="kicker">Run Coach · <span id="brandHandle">@bartlopen</span></p>
+          <h1 id="appName">Op naar de marathon</h1>
+        </div>
+        <button class="icon-button" id="resetButton" type="button" aria-label="Voortgang wissen" title="Voortgang wissen">
+          <span aria-hidden="true">↺</span>
+        </button>
+      </header>
+
+      <main>
+        <!-- ============ HOME ============ -->
+        <div id="listView">
+          <!-- Hero met voortgangsring -->
+          <section class="hero reveal">
+            <div class="hero-glow" aria-hidden="true"></div>
+            <img class="brand-logo" src="coach-logo.png" alt="bartlopen — Run Coach" />
+            <div class="hero-top">
+              <div class="hero-copy">
+                <p class="hero-kicker">Doel</p>
+                <h2 id="goalText">Marathon in 3:30–3:45</h2>
+                <p class="hero-runner">voor <strong id="runnerName">Sebastian</strong></p>
+                <p class="hero-motto" id="heroMotto">Let's go. 🔥</p>
+              </div>
+              <div class="ring-wrap" aria-hidden="true">
+                <svg viewBox="0 0 120 120" class="ring">
+                  <defs>
+                    <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0" stop-color="#ff9a3d" />
+                      <stop offset="1" stop-color="#ff2d78" />
+                    </linearGradient>
+                  </defs>
+                  <circle class="ring-bg" cx="60" cy="60" r="52" />
+                  <circle class="ring-fg" id="ringFg" cx="60" cy="60" r="52" />
+                </svg>
+                <div class="ring-label"><strong id="ringPct">0%</strong><span>klaar</span></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Strava-achtige stats -->
+          <section class="stats-grid reveal">
+            <div class="stat-tile"><span class="stat-val" data-count="0" id="statDone">0</span><span class="stat-label">trainingen</span></div>
+            <div class="stat-tile"><span class="stat-val" data-count="0" data-suffix=" km" id="statKm">0</span><span class="stat-label">gelopen</span></div>
+            <div class="stat-tile"><span class="stat-val" data-count="0" id="statStreak">0</span><span class="stat-label">reeks 🔥</span></div>
+            <div class="stat-tile"><span class="stat-val" id="statWeek">0/4</span><span class="stat-label">deze week</span></div>
+          </section>
+
+          <!-- Volgende training -->
+          <section class="nextup reveal" id="nextUp"></section>
+
+          <!-- Weekvolume-grafiek -->
+          <section class="panel reveal">
+            <h3 class="panel-head">Weekvolume <span class="panel-sub">gepland · gedaan</span></h3>
+            <div class="chart" id="volumeChart"></div>
+          </section>
+
+          <!-- Tempozones -->
+          <section class="panel reveal">
+            <h3 class="panel-head">Tempozones <span class="panel-sub">niveau: gevorderd</span></h3>
+            <div class="zones" id="zonesList"></div>
+          </section>
+
+          <!-- Schema -->
+          <section class="weeks">
+            <h3 class="phase-head reveal">Het schema · 18 weken</h3>
+            <div id="weeksList"></div>
+          </section>
+
+          <!-- Badges -->
+          <section class="badges">
+            <h3 class="phase-head reveal">Badges</h3>
+            <div class="badge-grid" id="badgeGrid"></div>
+          </section>
+
+          <!-- Advies -->
+          <section class="info">
+            <h3 class="phase-head reveal">Coach-advies</h3>
+            <div class="info-grid" id="infoList"></div>
+          </section>
+        </div>
+
+        <!-- ============ DETAIL ============ -->
+        <div id="detailView" class="hidden">
+          <p class="detail-eyebrow" id="detailTitle"></p>
+          <div id="detailBody"></div>
+        </div>
+      </main>
+
+      <footer class="foot">
+        <section class="data-card">
+          <h3 class="panel-head">Voortgang &amp; back-up</h3>
+          <p class="data-note">Je voortgang blijft bewaard op dit apparaat. Maak af en toe een back-up, of laad 'm op een ander apparaat in.</p>
+          <div class="data-row">
+            <button class="btn-ghost" id="exportBtn" type="button">⬇︎ Back-up opslaan</button>
+            <button class="btn-ghost" id="importBtn" type="button">⬆︎ Back-up laden</button>
+          </div>
+          <input id="importFile" type="file" accept="application/json,.json" hidden />
+        </section>
+        <p class="foot-credit" id="footCredit">Coaching door Coach Bart · TikTok <strong>@bartlopen</strong> 🏃‍♂️</p>
+      </footer>
+    </div>
+
+    <div id="toast" class="toast" aria-live="polite"></div>
+
+    <script src="app.js?v=1"></script>
+  </body>
+</html>

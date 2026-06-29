@@ -1,0 +1,16 @@
+{
+  "name": "Op naar de marathon — bartlopen Run Coach",
+  "short_name": "Op naar de marathon",
+  "description": "Persoonlijk 18-weken marathonschema (3:30–3:45) met coaching van @bartlopen, stats en badges.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0a0d",
+  "theme_color": "#0b0a0d",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
