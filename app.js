@@ -276,12 +276,33 @@ const flatSessions = PLAN.flatMap((w) => w.sessions.map((s) => ({ ...s, week: w.
 const totalSessions = flatSessions.length;
 
 function parseTime(str) {
+  if (str == null) return null;
+  str = String(str).trim();
   if (!str) return null;
-  const parts = String(str).split(":").map((p) => parseInt(p, 10));
-  if (parts.some((n) => Number.isNaN(n))) return null;
-  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-  if (parts.length === 2) return parts[0] * 60 + parts[1];
-  return parts[0] * 60;
+  // Met leestekens (h:mm:ss of mm:ss) — bv. als je op laptop typt
+  if (str.includes(":")) {
+    const parts = str.split(":").map((p) => parseInt(p, 10));
+    if (parts.some((n) => Number.isNaN(n))) return null;
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    if (parts.length === 2) return parts[0] * 60 + parts[1];
+    return parts[0] * 60;
+  }
+  // Alleen cijfers (telefoon-cijferpad heeft geen dubbele punt): lees van
+  // rechts af als [uu]mmss — 3630 → 36:30, 10830 → 1:08:30, 33800 → 3:38:00
+  const d = str.replace(/\D/g, "");
+  if (!d) return null;
+  const ss = parseInt(d.slice(-2), 10) || 0;
+  const mm = parseInt(d.slice(-4, -2) || "0", 10) || 0;
+  const hh = parseInt(d.slice(0, -4) || "0", 10) || 0;
+  return hh * 3600 + mm * 60 + ss;
+}
+/* Seconden → nette klok (h:mm:ss of mm:ss) voor weergave in het veld */
+function fmtClock(str) {
+  const sec = parseTime(str);
+  if (sec == null) return "";
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+           : `${m}:${String(s).padStart(2, "0")}`;
 }
 function paceSeconds(distance, timeStr) {
   const d = parseFloat(String(distance).replace(",", "."));
@@ -540,8 +561,9 @@ function openDetail(week, day) {
         <label>Afstand (km)
           <input id="fDistance" type="text" inputmode="decimal" placeholder="bv. 12,4" value="${e.distance ?? ""}">
         </label>
-        <label>Tijd (mm:ss)
-          <input id="fTime" type="text" inputmode="numeric" placeholder="bv. 1:08:30" value="${e.time ?? ""}">
+        <label>Tijd
+          <input id="fTime" type="text" inputmode="numeric" autocomplete="off" placeholder="bv. 10830" value="${fmtClock(e.time) || (e.time ?? "")}">
+          <small style="display:block;margin-top:6px;font-size:12px;opacity:.6;line-height:1.35;">Tik alleen cijfers — 10830 wordt 1:08:30, 3630 wordt 36:30.</small>
         </label>
         <label class="full">Gemiddeld tempo
           <output id="fPace" class="pace-out">${fmtPace(paceSeconds(e.distance, e.time)) || "—"}</output>
@@ -569,11 +591,17 @@ function openDetail(week, day) {
   const recalc = () => ($("fPace").textContent = fmtPace(paceSeconds($("fDistance").value, $("fTime").value)) || "—");
   $("fDistance").addEventListener("input", recalc);
   $("fTime").addEventListener("input", recalc);
+  // Zodra je klaar bent met tikken: cijfers netjes omzetten naar h:mm:ss
+  $("fTime").addEventListener("blur", () => {
+    const clk = fmtClock($("fTime").value);
+    if (clk) $("fTime").value = clk;
+    recalc();
+  });
 
   const collect = () => ({
     ...log[id],
     distance: $("fDistance").value.trim(),
-    time: $("fTime").value.trim(),
+    time: fmtClock($("fTime").value) || $("fTime").value.trim(),
     hr: $("fHr").value.trim(),
     feel: $("fFeel").value,
     note: $("fNote").value.trim(),
@@ -714,6 +742,124 @@ $("importFile").addEventListener("change", (e) => {
     e.target.value = "";
   };
   reader.readAsText(file);
+});
+
+/* ----- Schema exporteren: agenda (.ics) & PDF ---------------------- *
+   De dagen zijn een voorstel (ma/wo/vr/zo per week); het schema is
+   flexibel, dus verschuif de afspraken gerust in je eigen agenda.      */
+const SLOT_OFFSET = [0, 2, 4, 6]; // d1→ma, d2→wo, d3→vr, d4→zo
+/* Kalenderdagen optellen op lokale middernacht — DST-veilig (niet via ms,
+   want de zomer-/wintertijdovergang zou de datum een dag laten verspringen). */
+function addDays(base, n) {
+  const d = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+  d.setDate(d.getDate() + n);
+  return d;
+}
+function weekMonday(week) {
+  return addDays(START_DATE, (week - 1) * 7);
+}
+function sessionDate(week, slotIndex) {
+  return addDays(weekMonday(week), SLOT_OFFSET[slotIndex]);
+}
+const NL_DAY = ["ma", "di", "wo", "do", "vr", "za", "zo"];
+const NL_MONTH = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
+const pad2 = (n) => String(n).padStart(2, "0");
+const dateStamp = (d) => `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
+const nlDate = (d) => `${NL_DAY[(d.getDay() + 6) % 7]} ${d.getDate()} ${NL_MONTH[d.getMonth()]}`;
+
+function buildICS() {
+  const esc = (s) => String(s).replace(/[\\;,]/g, (m) => "\\" + m).replace(/\r?\n/g, "\\n");
+  const stamp = dateStamp(new Date()) + "T000000Z";
+  const lines = [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//bartlopen//Run Coach//NL",
+    "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+    `X-WR-CALNAME:${esc(CONFIG.appName + " — " + RUNNER)}`,
+  ];
+  PLAN.forEach((w) => {
+    w.sessions.forEach((s, i) => {
+      const dt = sessionDate(w.week, i);
+      const dtEnd = new Date(dt.getTime() + 864e5);
+      const z = zoneByKey[s.zone];
+      const summary = `${s.race ? "" : "🏃 "}${s.title} · ${s.km} km`;
+      const desc = [
+        `Week ${w.week} · ${s.kind} · ${z.name} (${z.pace}/km)`,
+        `Doel: ${s.goal}`, "",
+        ...s.blocks,
+        "", "Flexibele dag — verschuif gerust. Coaching @bartlopen 🏃",
+      ].join("\n");
+      lines.push(
+        "BEGIN:VEVENT",
+        `UID:${sid(w.week, s.day)}-${CONFIG.storeKey}@bartlopen`,
+        `DTSTAMP:${stamp}`,
+        `DTSTART;VALUE=DATE:${dateStamp(dt)}`,
+        `DTEND;VALUE=DATE:${dateStamp(dtEnd)}`,
+        `SUMMARY:${esc(summary)}`,
+        `DESCRIPTION:${esc(desc)}`,
+        "TRANSP:TRANSPARENT",
+        "END:VEVENT",
+      );
+    });
+  });
+  lines.push("END:VCALENDAR");
+  return lines.join("\r\n");
+}
+$("icsBtn").addEventListener("click", () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([buildICS()], { type: "text/calendar" }));
+  a.download = `${CONFIG.appName.replace(/\s+/g, "-")}-agenda.ics`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast("Agenda-bestand opgeslagen 🗓️");
+});
+
+function buildPrintHTML() {
+  const esc = (s) => String(s).replace(/[&<>]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[m]));
+  const zonesRows = ZONES.map((z) =>
+    `<tr><td><b>${esc(z.name)}</b></td><td>${esc(z.pace)}/km</td><td>${esc(z.info)}</td></tr>`).join("");
+  let weeksHTML = "", lastPhase = "";
+  PLAN.forEach((w) => {
+    if (w.phase !== lastPhase) { weeksHTML += `<h2>${esc(w.phase)}</h2>`; lastPhase = w.phase; }
+    const tag = w.race ? " · RACEWEEK" : w.recovery ? " · herstel" : w.taper ? " · taper" : "";
+    const total = w.sessions.reduce((n, s) => n + s.km, 0);
+    const rows = w.sessions.map((s, i) => {
+      const z = zoneByKey[s.zone];
+      return `<tr>
+        <td class="d">${esc(nlDate(sessionDate(w.week, i)))}</td>
+        <td><b>${esc(s.title)}</b> <span class="km">${s.km} km</span><br>
+            <span class="sub">${esc(s.kind)} · ${esc(z.name)} ${esc(z.pace)}/km — ${esc(s.goal)}</span><br>
+            <span class="blk">${s.blocks.map(esc).join(" · ")}</span></td>
+      </tr>`;
+    }).join("");
+    weeksHTML += `<div class="wk"><h3>Week ${w.week} — ${esc(w.dates)}${tag} <span class="wt">${total} km</span></h3>
+      <table class="ses">${rows}</table></div>`;
+  });
+  return `<!doctype html><html lang="nl"><head><meta charset="utf-8">
+    <title>${esc(CONFIG.appName)} — ${esc(RUNNER)}</title><style>
+    *{box-sizing:border-box} body{font:13px/1.45 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111;margin:28px;}
+    h1{margin:0 0 2px;font-size:22px} .lead{color:#555;margin:0 0 14px}
+    h2{font-size:15px;margin:20px 0 8px;padding-bottom:4px;border-bottom:2px solid #ff2d78;color:#c81a5a}
+    .wk{break-inside:avoid;margin:0 0 12px} h3{font-size:13.5px;margin:12px 0 4px;background:#f4f4f6;padding:5px 8px;border-radius:6px}
+    .wt{float:right;color:#666;font-weight:600}
+    table{width:100%;border-collapse:collapse} td{vertical-align:top;padding:5px 8px;border-bottom:1px solid #eee}
+    td.d{white-space:nowrap;color:#c81a5a;font-weight:600;width:78px}
+    .km{color:#666;font-weight:600} .sub{color:#444} .blk{color:#777;font-size:12px}
+    table.zn td{border-bottom:1px solid #eee} .foot{margin-top:18px;color:#888;font-size:11px}
+    @media print{body{margin:12mm} a{color:#111}}
+    </style></head><body>
+    <h1>${esc(CONFIG.appName)} — ${esc(RUNNER)}</h1>
+    <p class="lead">${esc(GOAL)} · ${PLAN.length} weken · start ${esc(nlDate(START_DATE))} · coaching ${esc(CONFIG.coachName)} ${esc(CONFIG.coachHandle)}</p>
+    <h2>Tempozones</h2><table class="zn">${zonesRows}</table>
+    ${weeksHTML}
+    <p class="foot">${esc(CONFIG.catchphrase)} — dagen zijn een voorstel, jouw schema is flexibel. bartlopen Run Coach.</p>
+    <script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script>
+    </body></html>`;
+}
+$("pdfBtn").addEventListener("click", () => {
+  const win = window.open("", "_blank");
+  if (!win) { toast("Sta pop-ups toe om de PDF te maken"); return; }
+  win.document.write(buildPrintHTML());
+  win.document.close();
+  toast("Kies in het printvenster ‘Bewaar als PDF’ 📄");
 });
 
 /* Alles tekenen */

@@ -12,7 +12,7 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Op naar de marathon" />
-    <link rel="stylesheet" href="styles.css?v=1" />
+    <link rel="stylesheet" href="styles.css?v=2" />
   </head>
   <body>
     <div id="splash" class="splash" aria-hidden="true">
@@ -127,12 +127,20 @@
           </div>
           <input id="importFile" type="file" accept="application/json,.json" hidden />
         </section>
+        <section class="data-card">
+          <h3 class="panel-head">Schema meenemen</h3>
+          <p class="data-note">Zet je hele schema in de agenda (Apple/Google/Android) of print het als PDF. De dagen zijn een voorstel — verschuif ze gerust, jouw schema is flexibel.</p>
+          <div class="data-row">
+            <button class="btn-ghost" id="pdfBtn" type="button">📄 Schema als PDF</button>
+            <button class="btn-ghost" id="icsBtn" type="button">🗓️ Zet in agenda</button>
+          </div>
+        </section>
         <p class="foot-credit" id="footCredit">Coaching door Coach Bart · TikTok <strong>@bartlopen</strong> 🏃‍♂️</p>
       </footer>
     </div>
 
     <div id="toast" class="toast" aria-live="polite"></div>
 
-    <script src="app.js?v=1"></script>
+    <script src="app.js?v=2"></script>
   </body>
 </html>
