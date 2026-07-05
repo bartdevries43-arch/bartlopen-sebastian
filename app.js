@@ -444,7 +444,10 @@ function renderCountdown() {
     motto.after(el);
   }
   const { days, name } = raceInfo();
+  const wks = Math.round(days / 7), mon = Math.round(days / 30);
   el.textContent =
+    days > 180 ? `🗓️ jouw grote doel: over ~${mon} maanden — ${name}` :
+    days > 14 ? `🗓️ nog ${wks} weken tot je ${name}` :
     days > 1 ? `🗓️ nog ${days} dagen tot je ${name}` :
     days === 1 ? `🗓️ morgen is het zover: ${name}!` :
     days === 0 ? `🔥 vandaag is het zover: ${name}!` :
@@ -547,13 +550,14 @@ function renderZones() {
 }
 
 function renderChart() {
+  const cwBar = currentWeek();
   const max = Math.max(...PLAN.map((w) => w.sessions.reduce((n, s) => n + s[UNIT], 0)));
   $("volumeChart").innerHTML = PLAN.map((w) => {
     const planned = w.sessions.reduce((n, s) => n + s[UNIT], 0);
     const doneMin = w.sessions.reduce((n, s) => n + (log[sid(w.week, s.day)]?.done ? s[UNIT] : 0), 0);
     const h = Math.round((planned / max) * 100);
     const fill = planned ? Math.round((doneMin / planned) * 100) : 0;
-    const cls = (w.race || w.tuneup || w.finish) ? "is-race" : w.recovery ? "is-rest" : "";
+    const cls = ((w.race || w.tuneup || w.finish) ? "is-race" : w.recovery ? "is-rest" : "") + (w.week === cwBar ? " is-now" : "");
     return `
       <div class="bar ${cls}" title="Week ${w.week}: ${planned} ${UNIT_LABEL} gepland">
         <div class="bar-track" style="height:${h}%">
@@ -814,8 +818,13 @@ function showView(name) {
 }
 
 /* ----- Invliegende beelden -------------------------------------------- */
-let io;
+let io, initialRevealDone = false;
 function observeReveals() {
+  // Na de eerste keer: nieuw getekende blokken meteen tonen (geen her-animatie bij navigeren)
+  if (initialRevealDone) {
+    document.querySelectorAll(".reveal:not(.in)").forEach((el) => el.classList.add("in"));
+    return;
+  }
   io = io || new IntersectionObserver((entries) => {
     entries.forEach((en) => { if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); } });
   }, { threshold: 0.12, rootMargin: "0px 0px -40px 0px" });
@@ -837,7 +846,9 @@ function celebrate() {
   const cv = $("confetti");
   const ctx = cv.getContext("2d");
   cv.width = innerWidth; cv.height = innerHeight;
-  const colors = ["#d7ff3e", "#ff5630", "#2fb8ff", "#9a7bff", "#ffab2e"];
+  const cs = getComputedStyle(document.documentElement);
+  const colors = ["--volt", "--flame", "--pastel-blue", "--violet"]
+    .map((v) => cs.getPropertyValue(v).trim()).filter(Boolean).concat("#ffffff");
   const parts = Array.from({ length: 140 }, () => ({
     x: innerWidth / 2, y: innerHeight / 3,
     vx: (Math.random() - 0.5) * 14, vy: Math.random() * -16 - 4,
@@ -1035,6 +1046,9 @@ $("pdfBtn").addEventListener("click", () => {
 
 /* Alles tekenen */
 renderAll();
+/* Na de intro-animatie geen her-fade meer; failsafe die alles zeker toont */
+setTimeout(() => { initialRevealDone = true; }, 900);
+setTimeout(() => document.querySelectorAll(".reveal:not(.in)").forEach((el) => el.classList.add("in")), 1600);
 
 /* Intro-splash netjes weg laten faden (tikken slaat 'm over) */
 (function () {
