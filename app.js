@@ -8,6 +8,10 @@
    Hergebruik deze app voor een andere loper: kopieer de map, wijzig dit
    blok, vervang coach.jpg, en pas zo nodig het PLAN/de ZONES aan.       */
 const CONFIG = {
+  unit:       "km",
+  zonePaceSuffix: "/km",
+  footEmoji:  "🏃‍♂️",
+  mottos: ["Zet 'm op, strijder!", "Lekker bezig, strijder!", "Je bouwt 'm op, strijder.", "Halverwege — doorpakken! ⚡", "Bijna race-klaar, strijder!", "Marathonfinisher! Wat een strijder!"],
   appName:    "Op naar de marathon",   // titel boven in de app
   runner:     "Sebastian",             // naam van de loper
   goal:       "Marathon in 3:30–3:45", // doel (groot in de hero)
@@ -25,6 +29,9 @@ const RUNNER = CONFIG.runner;
 const GOAL = CONFIG.goal;
 const START_DATE = CONFIG.startDate;
 const STORE_KEY = CONFIG.storeKey;
+const UNIT = CONFIG.unit === "min" ? "min" : "km";
+const UNIT_LABEL = UNIT;
+const ZONE_SUFFIX = CONFIG.zonePaceSuffix ?? "/km";
 const COACH_INITIAL = (CONFIG.coachName.replace(/^coach\s+/i, "")[0] || "C").toUpperCase();
 
 /* Aantal weken in dit schema (gebruikt voor de "Nu"-markering & racedetectie) */
@@ -86,6 +93,14 @@ const coachLine = (zone) => {
 };
 
 /* --- Waarom deze training? (uitleg per type) ----------------------- */
+const DONE = [
+  "💪 Knap gedaan, strijder!",
+  "🔥 Weer eentje afgevinkt — trots op je!",
+  "👏 Lekker bezig, strijder.",
+  "🌟 Mooi volgehouden. Zo bouw je 'm op.",
+  "✅ Weer een stukje sterker geworden.",
+];
+
 const WHY = {
   duur:     "Rustige duurlopen bouwen je aerobe motor: sterker hart, meer haarvaten en betere vetverbranding. Het grootste deel van je weekvolume hoort hier rustig te zijn — zo verdraag je de marathonopbouw zonder blessures.",
   lang:     "De lange duurloop is de ruggengraat van je marathon. Je traint uithoudingsvermogen, vetverbranding en het mentale 'doorlopen'. Hier leer je je lichaam dat 42 km haalbaar is.",
@@ -274,35 +289,62 @@ let log = loadLog();
 const sid = (week, day) => `w${week}-${day}`;
 const flatSessions = PLAN.flatMap((w) => w.sessions.map((s) => ({ ...s, week: w.week })));
 const totalSessions = flatSessions.length;
+const LAST_SESSION = flatSessions[flatSessions.length - 1];
+const DAY_OFFSET = { ma: 0, di: 1, wo: 2, do: 3, vr: 4, za: 5, zo: 6, d1: 0, d2: 2, d3: 4, d4: 6 };
+
+const escapeHtml = (value = "") => String(value)
+  .replaceAll("&", "&amp;")
+  .replaceAll("<", "&lt;")
+  .replaceAll(">", "&gt;")
+  .replaceAll('"', "&quot;")
+  .replaceAll("'", "&#039;");
+
+function dateAtDay(dayIndex) {
+  const date = new Date(START_DATE);
+  date.setDate(date.getDate() + dayIndex);
+  date.setHours(12, 0, 0, 0);
+  return date;
+}
+
+function sessionDate(week, day) {
+  return dateAtDay((week - 1) * 7 + (DAY_OFFSET[day] ?? 0));
+}
+
+function isoDate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function planningEntries() {
+  return Array.isArray(log.__planning) ? log.__planning : [];
+}
+
+function planningForWeek(week) {
+  const start = isoDate(dateAtDay((week - 1) * 7));
+  const end = isoDate(dateAtDay((week - 1) * 7 + 6));
+  return planningEntries().filter((entry) => entry.start <= end && (entry.end || entry.start) >= start);
+}
 
 function parseTime(str) {
-  if (str == null) return null;
-  str = String(str).trim();
   if (!str) return null;
-  // Met leestekens (h:mm:ss of mm:ss) — bv. als je op laptop typt
-  if (str.includes(":")) {
-    const parts = str.split(":").map((p) => parseInt(p, 10));
-    if (parts.some((n) => Number.isNaN(n))) return null;
-    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-    if (parts.length === 2) return parts[0] * 60 + parts[1];
-    return parts[0] * 60;
-  }
-  // Alleen cijfers (telefoon-cijferpad heeft geen dubbele punt): lees van
-  // rechts af als [uu]mmss — 3630 → 36:30, 10830 → 1:08:30, 33800 → 3:38:00
-  const d = str.replace(/\D/g, "");
-  if (!d) return null;
-  const ss = parseInt(d.slice(-2), 10) || 0;
-  const mm = parseInt(d.slice(-4, -2) || "0", 10) || 0;
-  const hh = parseInt(d.slice(0, -4) || "0", 10) || 0;
-  return hh * 3600 + mm * 60 + ss;
+  const parts = String(str).split(":").map((p) => parseInt(p, 10));
+  if (parts.some((n) => Number.isNaN(n))) return null;
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  return parts[0] * 60;
 }
-/* Seconden → nette klok (h:mm:ss of mm:ss) voor weergave in het veld */
-function fmtClock(str) {
-  const sec = parseTime(str);
-  if (sec == null) return "";
-  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
-  return h ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
-           : `${m}:${String(s).padStart(2, "0")}`;
+
+function durationParts(str) {
+  const total = parseTime(str) || 0;
+  return { minutes: Math.floor(total / 60), seconds: total % 60 };
+}
+
+function durationValue(minutes, seconds) {
+  const m = Math.max(0, parseInt(minutes, 10) || 0);
+  const s = Math.min(59, Math.max(0, parseInt(seconds, 10) || 0));
+  return `${m}:${String(s).padStart(2, "0")}`;
 }
 function paceSeconds(distance, timeStr) {
   const d = parseFloat(String(distance).replace(",", "."));
@@ -319,7 +361,7 @@ function fmtPace(perKm) {
 
 /* Afgeleide statistieken uit de log */
 function computeStats() {
-  let done = 0, km = 0, maxDist = 0, bestPace = 0, raceDone = false;
+  let done = 0, km = 0, maxDist = 0, maxTime = 0, bestPace = 0, raceDone = false;
   flatSessions.forEach((s) => {
     const e = log[sid(s.week, s.day)];
     if (!e || !e.done) return;
@@ -327,9 +369,11 @@ function computeStats() {
     const d = parseFloat(String(e.distance || "").replace(",", ".")) || 0;
     km += d;
     if (d > maxDist) maxDist = d;
+    const t = parseTime(e.time) || 0;
+    if (t > maxTime) maxTime = t;
     const p = paceSeconds(e.distance, e.time);
     if (p && (bestPace === 0 || p < bestPace)) bestPace = p;
-    if (s.race) raceDone = true;
+    if (s.week === LAST_SESSION.week && s.day === LAST_SESSION.day) raceDone = true;
   });
   let streak = 0, run = 0;
   flatSessions.forEach((s) => {
@@ -340,7 +384,7 @@ function computeStats() {
   PLAN.forEach((w) => {
     if (w.sessions.every((s) => log[sid(w.week, s.day)]?.done)) fullWeeks++;
   });
-  return { done, total: totalSessions, km, maxDist, bestPace, raceDone, streak, fullWeeks };
+  return { done, total: totalSessions, km, maxDist, maxTime, bestPace, raceDone, streak, fullWeeks };
 }
 
 function currentWeek() {
@@ -375,9 +419,36 @@ function renderHero(stats) {
   fg.style.strokeDasharray = c;
   fg.style.strokeDashoffset = c;
   requestAnimationFrame(() => { fg.style.strokeDashoffset = c * (1 - pct / 100); });
-  const mottos = ["Zet 'm op, strijder!", "Lekker bezig, strijder!", "Je bouwt 'm op, strijder.", "Halverwege — doorpakken! ⚡", "Bijna race-klaar, strijder!", "Marathonfinisher! Wat een strijder!"];
+  const mottos = CONFIG.mottos || ["Zet 'm op, strijder!", "Lekker bezig, strijder!", "Je bouwt 'm rustig op, strijder.", "Halverwege — knap volgehouden! ⚡", "Bijna race-klaar, strijder!", "Finisher! Wat een prestatie, strijder. 🏅"];
   $("heroMotto").textContent =
     stats.raceDone ? mottos[5] : pct >= 80 ? mottos[4] : pct >= 50 ? mottos[3] : pct >= 20 ? mottos[2] : pct > 0 ? mottos[1] : mottos[0];
+  renderCountdown();
+}
+
+function raceInfo() {
+  const rw = PLAN.find((w) => w.race || w.tuneup || w.finish) || PLAN[PLAN.length - 1];
+  const rs = rw.sessions[rw.sessions.length - 1];
+  const off = DAY_OFFSET[rs.day] ?? 6;
+  const date = new Date(START_DATE.getTime() + ((rw.week - 1) * 7 + off) * 864e5);
+  const days = Math.round((date.setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 864e5);
+  return { days, name: rs.title.replace(/^[^\p{L}\d]+/u, "").trim() };
+}
+function renderCountdown() {
+  const motto = $("heroMotto");
+  if (!motto) return;
+  let el = $("raceCountdown");
+  if (!el) {
+    el = document.createElement("p");
+    el.id = "raceCountdown";
+    el.className = "hero-countdown";
+    motto.after(el);
+  }
+  const { days, name } = raceInfo();
+  el.textContent =
+    days > 1 ? `🗓️ nog ${days} dagen tot je ${name}` :
+    days === 1 ? `🗓️ morgen is het zover: ${name}!` :
+    days === 0 ? `🔥 vandaag is het zover: ${name}!` :
+    `🎉 ${name} volbracht — chapeau!`;
 }
 
 function renderStats(stats) {
@@ -391,10 +462,13 @@ function renderStats(stats) {
 }
 
 function renderNextUp() {
-  const next = flatSessions.find((s) => !log[sid(s.week, s.day)]?.done);
+  const cw = currentWeek();
+  const next =
+    flatSessions.find((s) => s.week >= cw && !log[sid(s.week, s.day)]?.done) ||
+    flatSessions.find((s) => !log[sid(s.week, s.day)]?.done);
   const box = $("nextUp");
   if (!next) {
-    box.innerHTML = `<div class="nextup-card done"><span class="nextup-eyebrow">🏅 Schema compleet</span><strong>Alles afgevinkt — chapeau, strijder!</strong></div>`;
+    box.innerHTML = `<div class="nextup-card done"><span class="nextup-eyebrow">🏅 Schema compleet</span><strong>Alles afgevinkt — chapeau, ${RUNNER}!</strong></div>`;
     return;
   }
   const z = zoneByKey[next.zone];
@@ -402,10 +476,65 @@ function renderNextUp() {
     <button class="nextup-card zone-${next.zone}" data-week="${next.week}" data-day="${next.day}">
       <span class="nextup-eyebrow">Volgende training · week ${next.week} · ${next.dayLabel}</span>
       <strong>${next.title}</strong>
-      <span class="nextup-meta">${next.kind} · ${z.name} ${z.pace}/km</span>
+      <span class="nextup-meta">${next[UNIT]} ${UNIT_LABEL} · ${z.name}</span>
       <span class="nextup-go">Openen ›</span>
     </button>`;
   box.querySelector(".nextup-card").addEventListener("click", () => openDetail(next.week, next.day));
+}
+
+const PLANNING_META = {
+  race: {
+    icon: "🏁", label: "Tussentijdse race",
+    advice: "Laat deze race je lange training vervangen. Houd de training ervoor rustig en plan daarna minimaal één hersteldag.",
+  },
+  vacation: {
+    icon: "🌴", label: "Vakantie",
+    advice: "Gemiste trainingen hoef je niet in te halen. Pak bij thuiskomst de eerstvolgende rustige training op.",
+  },
+  rest: {
+    icon: "🩹", label: "Rust / blessure",
+    advice: "Herstel gaat voor het schema. Hervat pas pijnvrij en bouw de eerste week extra rustig op.",
+  },
+};
+
+function formatPlanDate(value) {
+  if (!value) return "";
+  const date = new Date(`${value}T12:00:00`);
+  return date.toLocaleDateString("nl-NL", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function renderPlanning() {
+  const list = $("planningList");
+  if (!list) return;
+  const entries = [...planningEntries()].sort((a, b) => a.start.localeCompare(b.start));
+  if (!entries.length) {
+    list.innerHTML = `<div class="planning-empty"><span>🗓️</span><p>Nog niets gepland. Voeg een vakantie of oefenwedstrijd toe zodra je die weet.</p></div>`;
+    return;
+  }
+  list.innerHTML = entries.map((entry) => {
+    const meta = PLANNING_META[entry.type] || PLANNING_META.rest;
+    const period = entry.end && entry.end !== entry.start
+      ? `${formatPlanDate(entry.start)} – ${formatPlanDate(entry.end)}`
+      : formatPlanDate(entry.start);
+    return `<article class="planning-item plan-${entry.type}">
+      <span class="planning-icon">${meta.icon}</span>
+      <div class="planning-copy">
+        <span class="planning-type">${meta.label} · ${period}</span>
+        <strong>${escapeHtml(entry.title)}</strong>
+        ${entry.note ? `<p>${escapeHtml(entry.note)}</p>` : ""}
+        <p class="planning-advice"><b>Coachadvies:</b> ${meta.advice}</p>
+      </div>
+      <button class="planning-remove" type="button" data-plan-id="${escapeHtml(entry.id)}" aria-label="${escapeHtml(entry.title)} verwijderen">×</button>
+    </article>`;
+  }).join("");
+  list.querySelectorAll(".planning-remove").forEach((button) => {
+    button.addEventListener("click", () => {
+      log.__planning = planningEntries().filter((entry) => entry.id !== button.dataset.planId);
+      saveLog();
+      renderAll();
+      toast("Uit je planning verwijderd");
+    });
+  });
 }
 
 function renderZones() {
@@ -413,20 +542,20 @@ function renderZones() {
     <div class="zone-row zone-${z.key}">
       <span class="zone-dot"></span>
       <div class="zone-main"><strong>${z.name}</strong><span>${z.info}</span></div>
-      <span class="zone-pace">${z.pace}<small>/km</small></span>
+      <span class="zone-pace">${z.pace}${ZONE_SUFFIX ? `<small>${ZONE_SUFFIX}</small>` : ""}</span>
     </div>`).join("");
 }
 
 function renderChart() {
-  const max = Math.max(...PLAN.map((w) => w.sessions.reduce((n, s) => n + s.km, 0)));
+  const max = Math.max(...PLAN.map((w) => w.sessions.reduce((n, s) => n + s[UNIT], 0)));
   $("volumeChart").innerHTML = PLAN.map((w) => {
-    const planned = w.sessions.reduce((n, s) => n + s.km, 0);
-    const doneKm = w.sessions.reduce((n, s) => n + (log[sid(w.week, s.day)]?.done ? s.km : 0), 0);
+    const planned = w.sessions.reduce((n, s) => n + s[UNIT], 0);
+    const doneMin = w.sessions.reduce((n, s) => n + (log[sid(w.week, s.day)]?.done ? s[UNIT] : 0), 0);
     const h = Math.round((planned / max) * 100);
-    const fill = planned ? Math.round((doneKm / planned) * 100) : 0;
-    const cls = w.race ? "is-race" : w.recovery ? "is-rest" : "";
+    const fill = planned ? Math.round((doneMin / planned) * 100) : 0;
+    const cls = (w.race || w.tuneup || w.finish) ? "is-race" : w.recovery ? "is-rest" : "";
     return `
-      <div class="bar ${cls}" title="Week ${w.week}: ${planned} km gepland">
+      <div class="bar ${cls}" title="Week ${w.week}: ${planned} ${UNIT_LABEL} gepland">
         <div class="bar-track" style="height:${h}%">
           <div class="bar-fill" style="height:${fill}%"></div>
         </div>
@@ -436,7 +565,9 @@ function renderChart() {
 }
 
 function tagOf(w) {
+  if (w.finish) return `<span class="week-tag tag-race">Finale</span>`;
   if (w.race) return `<span class="week-tag tag-race">Raceweek</span>`;
+  if (w.tuneup) return `<span class="week-tag tag-tuneup">10 km race</span>`;
   if (w.recovery) return `<span class="week-tag tag-rest">Herstel</span>`;
   if (w.taper) return `<span class="week-tag tag-taper">Taper</span>`;
   return "";
@@ -444,6 +575,7 @@ function tagOf(w) {
 
 function renderWeeks() {
   const cw = currentWeek();
+  const todayIso = isoDate(new Date());
   let html = "", lastPhase = "";
   PLAN.forEach((w, i) => {
     if (w.phase !== lastPhase) { html += `<h4 class="sub-phase reveal">${w.phase}</h4>`; lastPhase = w.phase; }
@@ -456,23 +588,36 @@ function renderWeeks() {
       if (pace) bits.push(pace);
       if (e.hr) bits.push(`${e.hr} bpm`);
       const logged = bits.length ? `<span class="session-logged">📊 ${bits.join(" · ")}</span>` : "";
+      const lastDay = w.sessions[w.sessions.length - 1].day;
+      const isRaceSession = (w.race || w.tuneup || w.finish) && s.day === lastDay;
+      const isToday = isoDate(sessionDate(w.week, s.day)) === todayIso;
+      const raceKicker = isRaceSession
+        ? `<span class="session-race-kicker">${w.raceLabel || (w.race ? "🏅 Doelrace" : w.tuneup ? "🏁 Wedstrijd" : "🏁 Finale")}</span>`
+        : "";
       return `
-        <button class="session zone-${s.zone} ${e.done ? "is-done" : ""}" data-week="${w.week}" data-day="${s.day}">
-          <span class="session-day">${s.dayLabel.slice(0, 2)}</span>
+        <button class="session zone-${s.zone} ${isRaceSession ? "is-race-session" : ""} ${e.done ? "is-done" : ""} ${isToday ? "is-today" : ""}" data-week="${w.week}" data-day="${s.day}">
+          <span class="session-day">${isRaceSession ? "<small>🏁</small>" : ""}${s.dayLabel.slice(0, 2)}</span>
           <span class="session-body">
-            <span class="session-title">${s.title}</span>
-            <span class="session-meta">${s.kind} · ${z.pace}/km</span>
+            ${raceKicker}
+            <span class="session-title">${s.title}${isToday ? ' <span class="today-badge">Vandaag</span>' : ""}</span>
+            <span class="session-meta">${s[UNIT]} ${UNIT_LABEL} · ${s.kind}</span>
             ${logged}
           </span>
           <span class="session-check">${e.done ? "✓" : ""}</span>
         </button>`;
     }).join("");
+    const weekPlans = planningForWeek(w.week);
+    const planStrip = weekPlans.length ? `<div class="week-planning">${weekPlans.map((entry) => {
+      const meta = PLANNING_META[entry.type] || PLANNING_META.rest;
+      return `<span>${meta.icon} ${escapeHtml(entry.title)}</span>`;
+    }).join("")}</div>` : "";
     html += `
-      <article class="week-card reveal ${w.week === cw ? "is-current" : ""}" style="--i:${i % 4}">
+      <article class="week-card reveal ${w.tuneup ? "is-tuneup-week" : ""} ${w.race ? "is-goal-race-week" : ""} ${w.week === cw ? "is-current" : ""} ${w.week < cw ? (w.sessions.every((x) => log[sid(w.week, x.day)]?.done) ? "is-complete" : "is-missed") : ""}" style="--i:${i % 4}">
         <header class="week-head">
           <div><span class="week-no">Week ${w.week}</span><span class="week-dates">${w.dates}</span></div>
-          ${w.week === cw ? `<span class="week-tag tag-now">Nu</span>` : tagOf(w)}
+          ${w.week === cw ? `<span class="week-tag tag-now">Nu</span>` : w.week < cw ? (w.sessions.every((x) => log[sid(w.week, x.day)]?.done) ? `<span class="week-tag tag-done">✓ af</span>` : `<span class="week-tag tag-missed">gemist</span>`) : tagOf(w)}
         </header>
+        ${planStrip}
         <div class="session-list">${sess}</div>
       </article>`;
   });
@@ -503,35 +648,50 @@ function renderInfo() {
     </article>`).join("");
 }
 
+function addJumpButton() {
+  const head = document.querySelector(".weeks .phase-head");
+  if (!head || document.getElementById("jumpNow")) return;
+  const btn = document.createElement("button");
+  btn.id = "jumpNow";
+  btn.type = "button";
+  btn.className = "jump-now";
+  btn.textContent = "Naar deze week ↓";
+  btn.addEventListener("click", () =>
+    document.querySelector(".week-card.is-current")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  head.insertAdjacentElement("afterend", btn);
+}
+
 function renderAll() {
   const stats = computeStats();
   renderHero(stats);
   renderStats(stats);
   renderNextUp();
+  renderPlanning();
   renderChart();
   renderZones();
   renderWeeks();
+  addJumpButton();
   renderBadges(stats);
   renderInfo();
   observeReveals();
 }
 
-/* ----- Detailweergave ---------------------------------------------- */
+/* ----- Detailweergave ------------------------------------------------ */
 function openDetail(week, day) {
   const w = PLAN.find((x) => x.week === week);
   const s = w.sessions.find((x) => x.day === day);
   const id = sid(week, day);
   const e = log[id] || {};
   const z = zoneByKey[s.zone];
+  const enteredTime = durationParts(e.time);
 
   $("detailTitle").textContent = `Week ${week} · ${s.dayLabel}`;
-  $("detailBody").className = `zone-${s.zone}`;
   $("detailBody").innerHTML = `
     <div class="detail-hero zone-${s.zone}">
-      <span class="detail-kind">${s.kind}</span>
+      <span class="detail-kind">${s.kind} · ${s[UNIT]} ${UNIT_LABEL}</span>
       <h2>${s.title}</h2>
       <p class="detail-goal">${s.goal}</p>
-      <span class="detail-zone">${z.name} · ${z.pace}/km</span>
+      <span class="detail-zone">${z.name} · ${z.info}</span>
     </div>
 
     <div class="coach-bubble">
@@ -546,8 +706,8 @@ function openDetail(week, day) {
     </div>
 
     <section class="detail-block why">
-      <h4>Waarom deze training</h4>
-      <p>${WHY[s.zone] || ""}</p>
+      <h4>${w.race || w.tuneup ? "Waarom deze wedstrijd" : "Waarom deze training"}</h4>
+      <p>${s.why || WHY[s.zone] || ""}</p>
     </section>
 
     <section class="detail-block">
@@ -556,20 +716,24 @@ function openDetail(week, day) {
     </section>
 
     <section class="detail-block">
-      <h4>Invullen na de training</h4>
+      <h4>${w.race || w.tuneup ? "Invullen na de wedstrijd" : "Invullen na de training"}</h4>
       <div class="form-grid">
         <label>Afstand (km)
-          <input id="fDistance" type="text" inputmode="decimal" placeholder="bv. 12,4" value="${e.distance ?? ""}">
+          <input id="fDistance" type="text" inputmode="decimal" placeholder="bv. 6,2" value="${escapeHtml(e.distance ?? "")}">
         </label>
         <label>Tijd
-          <input id="fTime" type="text" inputmode="numeric" autocomplete="off" placeholder="bv. 10830" value="${fmtClock(e.time) || (e.time ?? "")}">
-          <small style="display:block;margin-top:6px;font-size:12px;opacity:.6;line-height:1.35;">Tik alleen cijfers — 10830 wordt 1:08:30, 3630 wordt 36:30.</small>
+          <span class="duration-input">
+            <input id="fTimeMinutes" type="number" inputmode="numeric" min="0" max="999" placeholder="36" value="${enteredTime.minutes || ""}" aria-label="Minuten">
+            <span>min</span>
+            <input id="fTimeSeconds" type="number" inputmode="numeric" min="0" max="59" placeholder="30" value="${enteredTime.seconds || ""}" aria-label="Seconden">
+            <span>sec</span>
+          </span>
         </label>
         <label class="full">Gemiddeld tempo
           <output id="fPace" class="pace-out">${fmtPace(paceSeconds(e.distance, e.time)) || "—"}</output>
         </label>
         <label>Hartslag (bpm)
-          <input id="fHr" type="number" inputmode="numeric" placeholder="bv. 148" value="${e.hr ?? ""}">
+          <input id="fHr" type="number" inputmode="numeric" placeholder="bv. 152" value="${escapeHtml(e.hr ?? "")}">
         </label>
         <label>Gevoel / zwaarte
           <select id="fFeel">
@@ -578,7 +742,7 @@ function openDetail(week, day) {
           </select>
         </label>
         <label class="full">Notitie
-          <textarea id="fNote" rows="2" placeholder="Hoe ging het?">${e.note ?? ""}</textarea>
+          <textarea id="fNote" rows="2" placeholder="Hoe ging het?">${escapeHtml(e.note ?? "")}</textarea>
         </label>
       </div>
     </section>
@@ -588,20 +752,22 @@ function openDetail(week, day) {
       <button id="saveSession" class="btn-ghost">Opslaan</button>
     </div>`;
 
-  const recalc = () => ($("fPace").textContent = fmtPace(paceSeconds($("fDistance").value, $("fTime").value)) || "—");
+  const readTime = () => {
+    if (!$("fTimeMinutes").value && !$("fTimeSeconds").value) return "";
+    return durationValue($("fTimeMinutes").value, $("fTimeSeconds").value);
+  };
+  const recalc = () => ($("fPace").textContent = fmtPace(paceSeconds($("fDistance").value, readTime())) || "—");
   $("fDistance").addEventListener("input", recalc);
-  $("fTime").addEventListener("input", recalc);
-  // Zodra je klaar bent met tikken: cijfers netjes omzetten naar h:mm:ss
-  $("fTime").addEventListener("blur", () => {
-    const clk = fmtClock($("fTime").value);
-    if (clk) $("fTime").value = clk;
+  $("fTimeMinutes").addEventListener("input", recalc);
+  $("fTimeSeconds").addEventListener("input", () => {
+    if (+$("fTimeSeconds").value > 59) $("fTimeSeconds").value = "59";
     recalc();
   });
 
   const collect = () => ({
     ...log[id],
     distance: $("fDistance").value.trim(),
-    time: fmtClock($("fTime").value) || $("fTime").value.trim(),
+    time: readTime(),
     hr: $("fHr").value.trim(),
     feel: $("fFeel").value,
     note: $("fNote").value.trim(),
@@ -616,7 +782,10 @@ function openDetail(week, day) {
     const cur = collect();
     cur.done = !cur.done;
     log[id] = cur; saveLog();
-    if (cur.done) { celebrate(); toast(s.race ? "🏅 Marathonfinisher! Wat een strijder!" : "💥 Knap gedaan, strijder!"); }
+    if (cur.done) {
+      celebrate();
+      toast(w.finish ? "🌞 Zomer rond! Wat een strijder!" : w.race ? "🏅 Finisher! Wat een prestatie, strijder!" : w.tuneup ? "🏁 Wedstrijd voltooid — sterk gepacet!" : DONE[Math.floor(Math.random() * DONE.length)]);
+    }
     closeDetail();
   });
 
@@ -644,7 +813,7 @@ function showView(name) {
   }
 }
 
-/* ----- Invliegende beelden ----------------------------------------- */
+/* ----- Invliegende beelden -------------------------------------------- */
 let io;
 function observeReveals() {
   io = io || new IntersectionObserver((entries) => {
@@ -653,7 +822,7 @@ function observeReveals() {
   document.querySelectorAll(".reveal:not(.in)").forEach((el) => io.observe(el));
 }
 
-/* ----- Toast ------------------------------------------------------- */
+/* ----- Toast ----------------------------------------------------------- */
 let toastT;
 function toast(msg) {
   const t = $("toast");
@@ -663,7 +832,7 @@ function toast(msg) {
   toastT = setTimeout(() => t.classList.remove("show"), 2200);
 }
 
-/* ----- Confetti ---------------------------------------------------- */
+/* ----- Confetti --------------------------------------------------------- */
 function celebrate() {
   const cv = $("confetti");
   const ctx = cv.getContext("2d");
@@ -700,21 +869,128 @@ if ($("brandHandle")) $("brandHandle").textContent = CONFIG.coachHandle;
 if ($("footCredit")) {
   $("footCredit").innerHTML =
     `<span class="catch">${CONFIG.catchphrase}</span>` +
-    `Coaching door ${CONFIG.coachName} · TikTok <strong>${CONFIG.coachHandle}</strong> 🏃‍♂️`;
+    `Coaching door ${CONFIG.coachName} · TikTok <strong>${CONFIG.coachHandle}</strong> ${CONFIG.footEmoji || "🏃\u200d♀️"}`;
 }
+
+function setPlanningForm(open) {
+  const form = $("planningForm");
+  const toggle = $("togglePlanningForm");
+  form.classList.toggle("hidden", !open);
+  toggle.setAttribute("aria-expanded", String(open));
+  toggle.textContent = open ? "× Sluiten" : "＋ Toevoegen";
+  if (open && !$("planStart").value) $("planStart").value = isoDate(new Date());
+}
+
+$("togglePlanningForm").addEventListener("click", () => {
+  setPlanningForm($("planningForm").classList.contains("hidden"));
+});
+$("cancelPlanning").addEventListener("click", () => setPlanningForm(false));
+$("planningForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const start = $("planStart").value;
+  const end = $("planEnd").value || start;
+  if (end < start) {
+    toast("De einddatum ligt vóór de startdatum");
+    return;
+  }
+  const entry = {
+    id: `plan-${Date.now()}`,
+    type: $("planType").value,
+    title: $("planTitle").value.trim(),
+    start,
+    end,
+    note: $("planNote").value.trim(),
+  };
+  log.__planning = [...planningEntries(), entry];
+  saveLog();
+  $("planningForm").reset();
+  setPlanningForm(false);
+  renderAll();
+  toast("Toegevoegd aan je schema 🗓️");
+});
 
 $("backButton").addEventListener("click", closeDetail);
 $("resetButton").addEventListener("click", () => {
   if (confirm("Alle ingevulde voortgang wissen?")) { log = {}; saveLog(); renderAll(); toast("Voortgang gewist"); }
 });
 
-/* ----- Back-up: exporteren / importeren ---------------------------- */
+/* ----- Back-up: exporteren / importeren ------------------------------- */
 function downloadJSON(filename, obj) {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" }));
   a.download = filename;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function downloadText(filename, text, type) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function icsEscape(value) {
+  return String(value || "")
+    .replaceAll("\\", "\\\\")
+    .replaceAll(/\r?\n/g, "\\n")
+    .replaceAll(",", "\\,")
+    .replaceAll(";", "\\;");
+}
+
+function icsDay(value) {
+  const date = typeof value === "string" ? new Date(`${value}T12:00:00`) : value;
+  return isoDate(date).replaceAll("-", "");
+}
+
+function addDays(value, amount) {
+  const date = typeof value === "string" ? new Date(`${value}T12:00:00`) : new Date(value);
+  date.setDate(date.getDate() + amount);
+  return date;
+}
+
+function calendarFile() {
+  const stamp = new Date().toISOString().replaceAll(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "PRODID:-//bartlopen//Run Coach//NL",
+    `X-WR-CALNAME:${icsEscape(CONFIG.appName)} · ${icsEscape(RUNNER)}`,
+  ];
+  flatSessions.forEach((session) => {
+    const date = sessionDate(session.week, session.day);
+    const z = zoneByKey[session.zone];
+    lines.push(
+      "BEGIN:VEVENT",
+      `UID:${sid(session.week, session.day)}-${icsDay(date)}@bartlopen.nl`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART;VALUE=DATE:${icsDay(date)}`,
+      `DTEND;VALUE=DATE:${icsDay(addDays(date, 1))}`,
+      `SUMMARY:${icsEscape(`${CONFIG.footEmoji || "🏃\u200d♀️"} ${session.title}`)}`,
+      `DESCRIPTION:${icsEscape(`${session[UNIT]} ${UNIT_LABEL} · ${z.name}\n${session.goal}\n\n${session.blocks.join("\n")}`)}`,
+      "TRANSP:TRANSPARENT",
+      "END:VEVENT",
+    );
+  });
+  planningEntries().forEach((entry) => {
+    const meta = PLANNING_META[entry.type] || PLANNING_META.rest;
+    lines.push(
+      "BEGIN:VEVENT",
+      `UID:${icsEscape(entry.id)}@bartlopen.nl`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART;VALUE=DATE:${icsDay(entry.start)}`,
+      `DTEND;VALUE=DATE:${icsDay(addDays(entry.end || entry.start, 1))}`,
+      `SUMMARY:${icsEscape(`${meta.icon} ${entry.title}`)}`,
+      `DESCRIPTION:${icsEscape(`${entry.note ? `${entry.note}\n\n` : ""}Coachadvies: ${meta.advice}`)}`,
+      "TRANSP:TRANSPARENT",
+      "END:VEVENT",
+    );
+  });
+  lines.push("END:VCALENDAR");
+  return `${lines.join("\r\n")}\r\n`;
 }
 $("exportBtn").addEventListener("click", () => {
   downloadJSON(`${CONFIG.appName.replace(/\s+/g, "-")}-voortgang.json`, {
@@ -744,122 +1020,17 @@ $("importFile").addEventListener("change", (e) => {
   reader.readAsText(file);
 });
 
-/* ----- Schema exporteren: agenda (.ics) & PDF ---------------------- *
-   De dagen zijn een voorstel (ma/wo/vr/zo per week); het schema is
-   flexibel, dus verschuif de afspraken gerust in je eigen agenda.      */
-const SLOT_OFFSET = [0, 2, 4, 6]; // d1→ma, d2→wo, d3→vr, d4→zo
-/* Kalenderdagen optellen op lokale middernacht — DST-veilig (niet via ms,
-   want de zomer-/wintertijdovergang zou de datum een dag laten verspringen). */
-function addDays(base, n) {
-  const d = new Date(base.getFullYear(), base.getMonth(), base.getDate());
-  d.setDate(d.getDate() + n);
-  return d;
-}
-function weekMonday(week) {
-  return addDays(START_DATE, (week - 1) * 7);
-}
-function sessionDate(week, slotIndex) {
-  return addDays(weekMonday(week), SLOT_OFFSET[slotIndex]);
-}
-const NL_DAY = ["ma", "di", "wo", "do", "vr", "za", "zo"];
-const NL_MONTH = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
-const pad2 = (n) => String(n).padStart(2, "0");
-const dateStamp = (d) => `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
-const nlDate = (d) => `${NL_DAY[(d.getDay() + 6) % 7]} ${d.getDate()} ${NL_MONTH[d.getMonth()]}`;
-
-function buildICS() {
-  const esc = (s) => String(s).replace(/[\\;,]/g, (m) => "\\" + m).replace(/\r?\n/g, "\\n");
-  const stamp = dateStamp(new Date()) + "T000000Z";
-  const lines = [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//bartlopen//Run Coach//NL",
-    "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
-    `X-WR-CALNAME:${esc(CONFIG.appName + " — " + RUNNER)}`,
-  ];
-  PLAN.forEach((w) => {
-    w.sessions.forEach((s, i) => {
-      const dt = sessionDate(w.week, i);
-      const dtEnd = new Date(dt.getTime() + 864e5);
-      const z = zoneByKey[s.zone];
-      const summary = `${s.race ? "" : "🏃 "}${s.title} · ${s.km} km`;
-      const desc = [
-        `Week ${w.week} · ${s.kind} · ${z.name} (${z.pace}/km)`,
-        `Doel: ${s.goal}`, "",
-        ...s.blocks,
-        "", "Flexibele dag — verschuif gerust. Coaching @bartlopen 🏃",
-      ].join("\n");
-      lines.push(
-        "BEGIN:VEVENT",
-        `UID:${sid(w.week, s.day)}-${CONFIG.storeKey}@bartlopen`,
-        `DTSTAMP:${stamp}`,
-        `DTSTART;VALUE=DATE:${dateStamp(dt)}`,
-        `DTEND;VALUE=DATE:${dateStamp(dtEnd)}`,
-        `SUMMARY:${esc(summary)}`,
-        `DESCRIPTION:${esc(desc)}`,
-        "TRANSP:TRANSPARENT",
-        "END:VEVENT",
-      );
-    });
-  });
-  lines.push("END:VCALENDAR");
-  return lines.join("\r\n");
-}
-$("icsBtn").addEventListener("click", () => {
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([buildICS()], { type: "text/calendar" }));
-  a.download = `${CONFIG.appName.replace(/\s+/g, "-")}-agenda.ics`;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  toast("Agenda-bestand opgeslagen 🗓️");
+$("calendarBtn").addEventListener("click", () => {
+  downloadText(`${CONFIG.appName.replace(/\s+/g, "-")}-schema.ics`, calendarFile(), "text/calendar;charset=utf-8");
+  toast("Agenda-bestand staat klaar 🗓️");
 });
 
-function buildPrintHTML() {
-  const esc = (s) => String(s).replace(/[&<>]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[m]));
-  const zonesRows = ZONES.map((z) =>
-    `<tr><td><b>${esc(z.name)}</b></td><td>${esc(z.pace)}/km</td><td>${esc(z.info)}</td></tr>`).join("");
-  let weeksHTML = "", lastPhase = "";
-  PLAN.forEach((w) => {
-    if (w.phase !== lastPhase) { weeksHTML += `<h2>${esc(w.phase)}</h2>`; lastPhase = w.phase; }
-    const tag = w.race ? " · RACEWEEK" : w.recovery ? " · herstel" : w.taper ? " · taper" : "";
-    const total = w.sessions.reduce((n, s) => n + s.km, 0);
-    const rows = w.sessions.map((s, i) => {
-      const z = zoneByKey[s.zone];
-      return `<tr>
-        <td class="d">${esc(nlDate(sessionDate(w.week, i)))}</td>
-        <td><b>${esc(s.title)}</b> <span class="km">${s.km} km</span><br>
-            <span class="sub">${esc(s.kind)} · ${esc(z.name)} ${esc(z.pace)}/km — ${esc(s.goal)}</span><br>
-            <span class="blk">${s.blocks.map(esc).join(" · ")}</span></td>
-      </tr>`;
-    }).join("");
-    weeksHTML += `<div class="wk"><h3>Week ${w.week} — ${esc(w.dates)}${tag} <span class="wt">${total} km</span></h3>
-      <table class="ses">${rows}</table></div>`;
-  });
-  return `<!doctype html><html lang="nl"><head><meta charset="utf-8">
-    <title>${esc(CONFIG.appName)} — ${esc(RUNNER)}</title><style>
-    *{box-sizing:border-box} body{font:13px/1.45 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111;margin:28px;}
-    h1{margin:0 0 2px;font-size:22px} .lead{color:#555;margin:0 0 14px}
-    h2{font-size:15px;margin:20px 0 8px;padding-bottom:4px;border-bottom:2px solid #ff2d78;color:#c81a5a}
-    .wk{break-inside:avoid;margin:0 0 12px} h3{font-size:13.5px;margin:12px 0 4px;background:#f4f4f6;padding:5px 8px;border-radius:6px}
-    .wt{float:right;color:#666;font-weight:600}
-    table{width:100%;border-collapse:collapse} td{vertical-align:top;padding:5px 8px;border-bottom:1px solid #eee}
-    td.d{white-space:nowrap;color:#c81a5a;font-weight:600;width:78px}
-    .km{color:#666;font-weight:600} .sub{color:#444} .blk{color:#777;font-size:12px}
-    table.zn td{border-bottom:1px solid #eee} .foot{margin-top:18px;color:#888;font-size:11px}
-    @media print{body{margin:12mm} a{color:#111}}
-    </style></head><body>
-    <h1>${esc(CONFIG.appName)} — ${esc(RUNNER)}</h1>
-    <p class="lead">${esc(GOAL)} · ${PLAN.length} weken · start ${esc(nlDate(START_DATE))} · coaching ${esc(CONFIG.coachName)} ${esc(CONFIG.coachHandle)}</p>
-    <h2>Tempozones</h2><table class="zn">${zonesRows}</table>
-    ${weeksHTML}
-    <p class="foot">${esc(CONFIG.catchphrase)} — dagen zijn een voorstel, jouw schema is flexibel. bartlopen Run Coach.</p>
-    <script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script>
-    </body></html>`;
-}
 $("pdfBtn").addEventListener("click", () => {
-  const win = window.open("", "_blank");
-  if (!win) { toast("Sta pop-ups toe om de PDF te maken"); return; }
-  win.document.write(buildPrintHTML());
-  win.document.close();
-  toast("Kies in het printvenster ‘Bewaar als PDF’ 📄");
+  document.body.classList.add("print-schema");
+  const cleanup = () => document.body.classList.remove("print-schema");
+  window.addEventListener("afterprint", cleanup, { once: true });
+  window.print();
+  setTimeout(cleanup, 1500);
 });
 
 /* Alles tekenen */
