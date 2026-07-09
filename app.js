@@ -665,10 +665,73 @@ function addJumpButton() {
   head.insertAdjacentElement("afterend", btn);
 }
 
+/* ----- Extra's: begroeting, records, consistentie ------------------- */
+function greetingWord() {
+  const h = new Date().getHours();
+  return h < 6 ? "Goedenacht" : h < 12 ? "Goedemorgen" : h < 18 ? "Goedemiddag" : "Goedenavond";
+}
+function renderGreeting() {
+  const copy = document.querySelector(".hero-copy");
+  if (!copy) return;
+  let el = document.getElementById("heroGreeting");
+  if (!el) {
+    el = document.createElement("p");
+    el.id = "heroGreeting";
+    el.className = "hero-greeting";
+    copy.insertBefore(el, copy.firstChild);
+  }
+  el.textContent = `${greetingWord()}, ${RUNNER.split(" ")[0]} 👋`;
+}
+function renderRecords(stats) {
+  const anchor = document.querySelector(".weeks");
+  if (!anchor) return;
+  let sec = document.getElementById("recordsPanel");
+  if (!sec) {
+    sec = document.createElement("section");
+    sec.id = "recordsPanel";
+    sec.className = "panel reveal";
+    anchor.parentNode.insertBefore(sec, anchor);
+  }
+  const pace = fmtPace(stats.bestPace);
+  const longest = UNIT === "min"
+    ? (stats.maxTime ? `${Math.round(stats.maxTime / 60)} min` : "—")
+    : (stats.maxDist ? `${stats.maxDist} km` : "—");
+  const rows = [
+    ["⚡ Snelste tempo", pace || "—"],
+    [UNIT === "min" ? "⏱️ Langste loop" : "🏔️ Verste loop", longest],
+    ["📊 Totaal gelopen", `${Math.round(stats.km * 10) / 10} km`],
+    ["🔥 Langste reeks", String(stats.streak)],
+  ];
+  sec.innerHTML = `<h3 class="panel-head">Jouw records</h3>
+    <div class="records">${rows.map(([l, v]) =>
+      `<div class="record"><span class="record-val">${v}</span><span class="record-label">${l}</span></div>`).join("")}</div>`;
+}
+function renderConsistency() {
+  const grid = document.querySelector(".stats-grid");
+  if (!grid) return;
+  let sec = document.getElementById("consistencyStrip");
+  if (!sec) {
+    sec = document.createElement("section");
+    sec.id = "consistencyStrip";
+    sec.className = "consistency reveal";
+    grid.parentNode.insertBefore(sec, grid.nextSibling);
+  }
+  const todayIso = isoDate(new Date());
+  const dots = flatSessions.map((s) => {
+    const done = log[sid(s.week, s.day)]?.done;
+    const past = isoDate(sessionDate(s.week, s.day)) < todayIso;
+    const cls = done ? "is-done" : past ? "is-missed" : "is-todo";
+    return `<span class="cdot ${cls}" title="Week ${s.week}"></span>`;
+  }).join("");
+  sec.innerHTML = `<div class="consistency-head"><span>Consistentie</span><span class="consistency-sub">afgerond · gemist · komt nog</span></div><div class="cdots">${dots}</div>`;
+}
+
 function renderAll() {
   const stats = computeStats();
   renderHero(stats);
   renderStats(stats);
+  renderGreeting();
+  renderConsistency();
   renderNextUp();
   renderPlanning();
   renderChart();
@@ -676,6 +739,7 @@ function renderAll() {
   renderWeeks();
   addJumpButton();
   renderBadges(stats);
+  renderRecords(stats);
   renderInfo();
   observeReveals();
 }
