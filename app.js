@@ -300,7 +300,7 @@ const escapeHtml = (value = "") => String(value)
   .replaceAll("'", "&#039;");
 
 function dateAtDay(dayIndex) {
-  const date = new Date(START_DATE);
+  const date = new Date(schedStartMs());
   date.setDate(date.getDate() + dayIndex);
   date.setHours(12, 0, 0, 0);
   return date;
@@ -388,7 +388,7 @@ function computeStats() {
 }
 
 function currentWeek() {
-  const diff = Math.floor((Date.now() - START_DATE.getTime()) / (7 * 864e5));
+  const diff = Math.floor((Date.now() - schedStartMs()) / (7 * 864e5));
   return Math.min(TOTAL_WEEKS, Math.max(1, diff + 1));
 }
 
@@ -429,7 +429,7 @@ function raceInfo() {
   const rw = PLAN.find((w) => w.race || w.tuneup || w.finish) || PLAN[PLAN.length - 1];
   const rs = rw.sessions[rw.sessions.length - 1];
   const off = DAY_OFFSET[rs.day] ?? 6;
-  const date = new Date(START_DATE.getTime() + ((rw.week - 1) * 7 + off) * 864e5);
+  const date = new Date(schedStartMs() + ((rw.week - 1) * 7 + off) * 864e5);
   const days = Math.round((date.setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 864e5);
   return { days, name: rs.title.replace(/^[^\p{L}\d]+/u, "").trim() };
 }
@@ -618,7 +618,7 @@ function renderWeeks() {
     html += `
       <article class="week-card reveal ${w.tuneup ? "is-tuneup-week" : ""} ${w.race ? "is-goal-race-week" : ""} ${w.week === cw ? "is-current" : ""} ${w.week < cw ? (w.sessions.every((x) => log[sid(w.week, x.day)]?.done) ? "is-complete" : "is-missed") : ""}" style="--i:${i % 4}">
         <header class="week-head">
-          <div><span class="week-no">Week ${w.week}</span><span class="week-dates">${w.dates}</span></div>
+          <div><span class="week-no">Week ${w.week}</span><span class="week-dates">${weekDateLabel(w)}</span></div>
           ${w.week === cw ? `<span class="week-tag tag-now">Nu</span>` : w.week < cw ? (w.sessions.every((x) => log[sid(w.week, x.day)]?.done) ? `<span class="week-tag tag-done">✓ af</span>` : `<span class="week-tag tag-missed">gemist</span>`) : tagOf(w)}
         </header>
         ${planStrip}
@@ -726,6 +726,41 @@ function renderConsistency() {
   sec.innerHTML = `<div class="consistency-head"><span>Consistentie</span><span class="consistency-sub">afgerond · gemist · komt nog</span></div><div class="cdots">${dots}</div>`;
 }
 
+/* ----- Schema opschuiven (drukke week) ------------------------------ */
+const NL_MND = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
+function weekOffset() { return (log && log.__weekOffset) || 0; }
+function schedStartMs() { return START_DATE.getTime() + weekOffset() * 7 * 864e5; }
+function weekDateLabel(w) {
+  if (!weekOffset()) return w.dates;
+  const mon = dateAtDay((w.week - 1) * 7), sun = dateAtDay((w.week - 1) * 7 + 6);
+  return `${mon.getDate()} ${NL_MND[mon.getMonth()]}–${sun.getDate()} ${NL_MND[sun.getMonth()]}`;
+}
+function renderShiftControl() {
+  const head = document.querySelector(".weeks .phase-head");
+  if (!head) return;
+  let el = document.getElementById("shiftControl");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "shiftControl";
+    el.className = "shift-control reveal";
+    head.insertAdjacentElement("afterend", el);
+  }
+  const off = weekOffset();
+  const wk = (n) => `${n} week${n > 1 ? "en" : ""}`;
+  el.innerHTML = off > 0
+    ? `<div class="shift-copy"><strong>Schema ${wk(off)} opgeschoven</strong><span>Je hele schema loopt nu ${wk(off)} langer. Niks staat op gemist.</span></div><div class="shift-btns"><button id="shiftMore" type="button">Nog een week</button><button id="shiftReset" type="button" class="ghost">Ongedaan maken</button></div>`
+    : `<div class="shift-copy"><strong>Drukke week gehad?</strong><span>Schuif je hele schema een week op, dan raak je niks kwijt.</span></div><div class="shift-btns"><button id="shiftMore" type="button">Schuif 1 week op ↦</button></div>`;
+  el.querySelector("#shiftMore").addEventListener("click", () => {
+    log.__weekOffset = weekOffset() + 1; saveLog(); renderAll();
+    toast("Schema een week opgeschoven 📅");
+  });
+  const rs = el.querySelector("#shiftReset");
+  if (rs) rs.addEventListener("click", () => {
+    log.__weekOffset = 0; saveLog(); renderAll();
+    toast("Opschuiven ongedaan gemaakt");
+  });
+}
+
 function renderAll() {
   const stats = computeStats();
   renderHero(stats);
@@ -738,6 +773,7 @@ function renderAll() {
   renderZones();
   renderWeeks();
   addJumpButton();
+  renderShiftControl();
   renderBadges(stats);
   renderRecords(stats);
   renderInfo();
