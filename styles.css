@@ -622,3 +622,25 @@ h1, h2, h3, h4, p { margin-top: 0; }
 .shift-control button { border: none; border-radius: 999px; padding: 9px 14px; font-weight: 700; font-size: 0.82rem; background: var(--volt); color: var(--volt-ink); cursor: pointer; transition: transform 0.15s var(--spring); }
 .shift-control button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
 .shift-control button:active { transform: scale(0.96); }
+
+
+/* ===== Consistentie v2: weekblokjes in een panel ===== */
+.consistency-panel .cweeks { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 6px; }
+.cweek { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 5px 4px 3px; border-radius: 9px; }
+.cweek.is-current { background: color-mix(in srgb, var(--volt) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--volt) 30%, transparent); }
+.ccells { display: flex; flex-direction: column; gap: 4px; }
+.ccell { width: 11px; height: 11px; border-radius: 3.5px; }
+.ccell.is-done { background: linear-gradient(135deg, var(--flame), var(--volt)); box-shadow: 0 1px 5px color-mix(in srgb, var(--volt) 40%, transparent); }
+.ccell.is-missed { background: color-mix(in srgb, var(--muted) 26%, transparent); }
+.ccell.is-todo { background: transparent; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--muted) 38%, transparent); }
+.ccell.is-today { box-shadow: inset 0 0 0 1.5px var(--azure), 0 0 8px color-mix(in srgb, var(--azure) 55%, transparent); }
+.cweek-no { font-size: 0.6rem; font-weight: 800; color: color-mix(in srgb, var(--muted) 75%, transparent); }
+.cweek.is-current .cweek-no { color: var(--volt); }
+.cons-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; flex-wrap: wrap; gap: 8px; }
+.cons-legend { display: flex; gap: 12px; font-size: 0.68rem; color: var(--muted); }
+.cons-legend .ck { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; vertical-align: middle; }
+.ck-done { background: linear-gradient(135deg, var(--flame), var(--volt)); }
+.ck-missed { background: color-mix(in srgb, var(--muted) 26%, transparent); }
+.ck-todo { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--muted) 38%, transparent); }
+.cons-score { font-size: 0.72rem; color: var(--muted); }
+.cons-score strong { color: var(--volt); font-weight: 800; }

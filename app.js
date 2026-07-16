@@ -713,17 +713,31 @@ function renderConsistency() {
   if (!sec) {
     sec = document.createElement("section");
     sec.id = "consistencyStrip";
-    sec.className = "consistency reveal";
+    sec.className = "panel consistency-panel reveal";
     grid.parentNode.insertBefore(sec, grid.nextSibling);
   }
   const todayIso = isoDate(new Date());
-  const dots = flatSessions.map((s) => {
-    const done = log[sid(s.week, s.day)]?.done;
-    const past = isoDate(sessionDate(s.week, s.day)) < todayIso;
-    const cls = done ? "is-done" : past ? "is-missed" : "is-todo";
-    return `<span class="cdot ${cls}" title="Week ${s.week}"></span>`;
+  const cw = currentWeek();
+  let done = 0, total = 0;
+  const cols = PLAN.map((w) => {
+    const cells = w.sessions.map((s) => {
+      const e = log[sid(w.week, s.day)] || {};
+      const dIso = isoDate(sessionDate(w.week, s.day));
+      total++;
+      if (e.done) done++;
+      const cls = e.done ? "is-done" : dIso < todayIso ? "is-missed" : "is-todo";
+      return `<span class="ccell ${cls}${dIso === todayIso ? " is-today" : ""}" title="Week ${w.week} \u00b7 ${s.dayLabel}"></span>`;
+    }).join("");
+    return `<div class="cweek${w.week === cw ? " is-current" : ""}"><div class="ccells">${cells}</div><span class="cweek-no">${w.week}</span></div>`;
   }).join("");
-  sec.innerHTML = `<div class="consistency-head"><span>Consistentie</span><span class="consistency-sub">afgerond · gemist · komt nog</span></div><div class="cdots">${dots}</div>`;
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  sec.innerHTML = `
+    <h3 class="panel-head">Consistentie <span class="panel-sub">elk blokje is een training</span></h3>
+    <div class="cweeks">${cols}</div>
+    <div class="cons-foot">
+      <div class="cons-legend"><span><i class="ck ck-done"></i>afgerond</span><span><i class="ck ck-missed"></i>gemist</span><span><i class="ck ck-todo"></i>komt nog</span></div>
+      <span class="cons-score"><strong>${done}/${total}</strong> gedaan \u00b7 ${pct}%</span>
+    </div>`;
 }
 
 /* ----- Schema opschuiven (drukke week) ------------------------------ */
