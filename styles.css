@@ -1,5 +1,5 @@
 /* ================================================================== *
- *  Kim's Halve Marathon — Run Coach · stoer/sportief, Apple-style, mobiel-eerst
+ *  Kim's Halve Marathon, Run Coach · stoer/sportief, Apple-style, mobiel-eerst
  * ================================================================== */
 :root {
   color-scheme: dark;
@@ -422,7 +422,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
 .foot-credit .catch { display: block; color: var(--pastel-pink); font-size: 1.05rem; margin-bottom: 6px; }
 
 /* ================================================================== *
- *  Animaties — "invliegende beelden"
+ *  Animaties, "invliegende beelden"
  * ================================================================== */
 .reveal { opacity: 0; transform: translateY(26px) scale(0.98); transition: opacity 0.6s var(--ease-out), transform 0.6s var(--spring); transition-delay: calc(var(--i, 0) * 45ms); }
 .reveal.in { opacity: 1; transform: none; }
