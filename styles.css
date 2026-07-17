@@ -123,7 +123,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
   filter: blur(20px); animation: float 7s ease-in-out infinite alternate;
 }
 @keyframes float { to { transform: translate(-14px, -10px) scale(1.1); } }
-.brand-logo { position: relative; display: block; height: 42px; width: auto; max-width: 80%; margin-bottom: 18px; }
+.brand-logo { position: relative; display: block; height: 88px; width: 88px; max-width: 100%; border-radius: 22px; box-shadow: 0 14px 34px rgba(255, 45, 124, 0.16); margin-bottom: 14px; }
 .hero-top { position: relative; display: flex; align-items: center; gap: 16px; justify-content: space-between; }
 .hero-kicker { margin: 0 0 6px; color: var(--pastel-blue); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
 .hero h2 { margin: 0 0 4px; font-size: clamp(1.45rem, 6.4vw, 1.95rem); font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; text-wrap: balance; }
