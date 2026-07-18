@@ -307,6 +307,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
   background: color-mix(in srgb, var(--zc) 18%, transparent); color: var(--zc);
   font-weight: 800; font-size: 0.78rem; text-transform: uppercase;
 }
+.session-day.is-slot { font-size: 1rem; }
 .session-body { display: flex; flex-direction: column; min-width: 0; }
 .session-title { font-weight: 700; font-size: 0.98rem; }
 .session-meta { font-size: 0.78rem; color: var(--muted); }
