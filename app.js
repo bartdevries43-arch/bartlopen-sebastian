@@ -767,6 +767,7 @@ function renderShiftControl() {
     ? `<div class="shift-copy"><strong>Schema ${wk(off)} opgeschoven</strong><span>Je hele schema loopt nu ${wk(off)} langer. Niks staat op gemist.</span></div><div class="shift-btns"><button id="shiftMore" type="button">Nog een week</button><button id="shiftReset" type="button" class="ghost">Ongedaan maken</button></div>`
     : `<div class="shift-copy"><strong>Drukke week gehad?</strong><span>Schuif je hele schema een week op, dan raak je niks kwijt.</span></div><div class="shift-btns"><button id="shiftMore" type="button">Schuif 1 week op ↦</button></div>`;
   el.querySelector("#shiftMore").addEventListener("click", () => {
+    if (!confirm("Je hele schema een week opschuiven?\n\nAlle trainingen schuiven mee. Je kunt dit altijd terugzetten.")) return;
     log.__weekOffset = weekOffset() + 1; saveLog(); renderAll();
     toast("Schema een week opgeschoven 📅");
   });
@@ -775,6 +776,26 @@ function renderShiftControl() {
     log.__weekOffset = 0; saveLog(); renderAll();
     toast("Opschuiven ongedaan gemaakt");
   });
+
+  /* Duidelijke melding bovenaan: een per ongeluk verschoven schema moet je
+     meteen zien, niet pas als je ver naar beneden scrollt. */
+  const hero = document.querySelector(".hero");
+  let notice = document.getElementById("shiftNotice");
+  if (off > 0 && hero) {
+    if (!notice) {
+      notice = document.createElement("div");
+      notice.id = "shiftNotice";
+      notice.className = "shift-notice";
+      hero.insertAdjacentElement("afterend", notice);
+    }
+    notice.innerHTML = `<div class="shift-copy"><strong>\u{1F4C5} Je schema staat ${wk(off)} opgeschoven</strong><span>Daardoor sta je ${wk(off)} eerder in je schema dan de kalender. Klopt dat niet? Zet het gewoon terug.</span></div><div class="shift-btns"><button id="noticeReset" type="button">Zet terug</button></div>`;
+    notice.querySelector("#noticeReset").addEventListener("click", () => {
+      log.__weekOffset = 0; saveLog(); renderAll();
+      toast("Schema teruggezet \u{1F4C5}");
+    });
+  } else if (notice) {
+    notice.remove();
+  }
 }
 
 function renderAll() {
