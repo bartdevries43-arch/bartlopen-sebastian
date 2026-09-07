@@ -1201,3 +1201,12 @@ setTimeout(() => document.querySelectorAll(".reveal:not(.in)").forEach((el) => e
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
+
+/* Vraag de browser om je voortgang echt te bewaren. Zonder dit mag een
+   browser opgeslagen gegevens opruimen als er ruimte nodig is, en dan ben
+   je je afgevinkte trainingen kwijt. */
+if (navigator.storage && navigator.storage.persist) {
+  navigator.storage.persisted()
+    .then((al) => (al ? true : navigator.storage.persist()))
+    .catch(() => {});
+}
