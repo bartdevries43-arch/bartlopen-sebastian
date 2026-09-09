@@ -426,7 +426,8 @@ function renderHero(stats) {
 }
 
 function raceInfo() {
-  const rw = PLAN.find((w) => w.race || w.tuneup || w.finish) || PLAN[PLAN.length - 1];
+  const rw = PLAN.find((w) => w.race || w.finish) || PLAN.find((w) => w.tuneup) ||
+    PLAN[PLAN.length - 1];
   const rs = rw.sessions[rw.sessions.length - 1];
   const off = DAY_OFFSET[rs.day] ?? 6;
   const date = new Date(schedStartMs() + ((rw.week - 1) * 7 + off) * 864e5);
