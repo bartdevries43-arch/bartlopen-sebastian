@@ -31,6 +31,7 @@ const START_DATE = CONFIG.startDate;
 const STORE_KEY = CONFIG.storeKey;
 const UNIT = CONFIG.unit === "min" ? "min" : "km";
 const UNIT_LABEL = UNIT;
+const nlNum = (v) => String(v).replace(".", ",");
 const ZONE_SUFFIX = CONFIG.zonePaceSuffix ?? "/km";
 const COACH_INITIAL = (CONFIG.coachName.replace(/^coach\s+/i, "")[0] || "C").toUpperCase();
 
@@ -403,7 +404,7 @@ function animateCount(el, to, suffix = "") {
   function step(t) {
     const k = Math.min(1, (t - t0) / dur);
     const v = to * (1 - Math.pow(1 - k, 3));
-    el.textContent = (dec ? v.toFixed(1) : Math.round(v)) + suffix;
+    el.textContent = (dec ? v.toFixed(1).replace(".", ",") : Math.round(v)) + suffix;
     if (k < 1) requestAnimationFrame(step);
   }
   requestAnimationFrame(step);
@@ -480,7 +481,7 @@ function renderNextUp() {
     <button class="nextup-card zone-${next.zone}" data-week="${next.week}" data-day="${next.day}">
       <span class="nextup-eyebrow">Volgende training · week ${next.week} · ${next.dayLabel}</span>
       <strong>${next.title}</strong>
-      <span class="nextup-meta">${next[UNIT]} ${UNIT_LABEL} · ${z.name}</span>
+      <span class="nextup-meta">${nlNum(next[UNIT])} ${UNIT_LABEL} · ${z.name}</span>
       <span class="nextup-go">Openen ›</span>
     </button>`;
   box.querySelector(".nextup-card").addEventListener("click", () => openDetail(next.week, next.day));
@@ -560,7 +561,7 @@ function renderChart() {
     const fill = planned ? Math.round((doneMin / planned) * 100) : 0;
     const cls = ((w.race || w.tuneup || w.finish) ? "is-race" : w.recovery ? "is-rest" : "") + (w.week === cwBar ? " is-now" : "");
     return `
-      <div class="bar ${cls}" title="Week ${w.week}: ${planned} ${UNIT_LABEL} gepland">
+      <div class="bar ${cls}" title="Week ${w.week}: ${nlNum(Math.round(planned * 10) / 10)} ${UNIT_LABEL} gepland">
         <div class="bar-track" style="height:${h}%">
           <div class="bar-fill" style="height:${fill}%"></div>
         </div>
@@ -607,7 +608,7 @@ function renderWeeks() {
           <span class="session-body">
             ${raceKicker}
             <span class="session-title">${s.title}${isToday ? ' <span class="today-badge">Vandaag</span>' : ""}</span>
-            <span class="session-meta">${s[UNIT]} ${UNIT_LABEL} · ${s.kind}</span>
+            <span class="session-meta">${nlNum(s[UNIT])} ${UNIT_LABEL} · ${s.kind}</span>
             ${logged}
           </span>
           <span class="session-check">${e.done ? "✓" : ""}</span>
@@ -698,11 +699,11 @@ function renderRecords(stats) {
   const pace = fmtPace(stats.bestPace);
   const longest = UNIT === "min"
     ? (stats.maxTime ? `${Math.round(stats.maxTime / 60)} min` : "–")
-    : (stats.maxDist ? `${stats.maxDist} km` : "–");
+    : (stats.maxDist ? `${nlNum(stats.maxDist)} km` : "–");
   const rows = [
     ["⚡ Snelste tempo", pace || "–"],
     [UNIT === "min" ? "⏱️ Langste loop" : "🏔️ Verste loop", longest],
-    ["📊 Totaal gelopen", `${Math.round(stats.km * 10) / 10} km`],
+    ["📊 Totaal gelopen", `${nlNum(Math.round(stats.km * 10) / 10)} km`],
     ["🔥 Langste reeks", String(stats.streak)],
   ];
   sec.innerHTML = `<h3 class="panel-head">Jouw records</h3>
@@ -822,6 +823,8 @@ function renderAll() {
 function openDetail(week, day) {
   const w = PLAN.find((x) => x.week === week);
   const s = w.sessions.find((x) => x.day === day);
+  /* Alleen de wedstrijd zelf is een wedstrijd, niet de andere trainingen in die week. */
+  const isRaceDetail = (w.race || w.tuneup || w.finish) && s.day === w.sessions[w.sessions.length - 1].day;
   const id = sid(week, day);
   const e = log[id] || {};
   const z = zoneByKey[s.zone];
@@ -830,7 +833,7 @@ function openDetail(week, day) {
   $("detailTitle").textContent = `Week ${week} · ${s.dayLabel}`;
   $("detailBody").innerHTML = `
     <div class="detail-hero zone-${s.zone}">
-      <span class="detail-kind">${s.kind} · ${s[UNIT]} ${UNIT_LABEL}</span>
+      <span class="detail-kind">${s.kind} · ${nlNum(s[UNIT])} ${UNIT_LABEL}</span>
       <h2>${s.title}</h2>
       <p class="detail-goal">${s.goal}</p>
       <span class="detail-zone">${z.name} · ${z.info}</span>
@@ -848,7 +851,7 @@ function openDetail(week, day) {
     </div>
 
     <section class="detail-block why">
-      <h4>${w.race || w.tuneup ? "Waarom deze wedstrijd" : "Waarom deze training"}</h4>
+      <h4>${isRaceDetail ? "Waarom deze wedstrijd" : "Waarom deze training"}</h4>
       <p>${s.why || WHY[s.zone] || ""}</p>
     </section>
 
@@ -858,7 +861,7 @@ function openDetail(week, day) {
     </section>
 
     <section class="detail-block">
-      <h4>${w.race || w.tuneup ? "Invullen na de wedstrijd" : "Invullen na de training"}</h4>
+      <h4>${isRaceDetail ? "Invullen na de wedstrijd" : "Invullen na de training"}</h4>
       <div class="form-grid">
         <label>Afstand (km)
           <input id="fDistance" type="text" inputmode="decimal" placeholder="bv. 6,2" value="${escapeHtml(e.distance ?? "")}">
@@ -926,7 +929,7 @@ function openDetail(week, day) {
     log[id] = cur; saveLog();
     if (cur.done) {
       celebrate();
-      toast(w.finish ? "🌞 Zomer rond! Wat een strijder!" : w.race ? "🏅 Finisher! Wat een prestatie, strijder!" : w.tuneup ? "🏁 Wedstrijd voltooid, sterk gepacet!" : DONE[Math.floor(Math.random() * DONE.length)]);
+      toast(!isRaceDetail ? DONE[Math.floor(Math.random() * DONE.length)] : w.finish ? "🌞 Zomer rond! Wat een strijder!" : w.race ? "🏅 Finisher! Wat een prestatie, strijder!" : w.tuneup ? "🏁 Wedstrijd voltooid, sterk gepacet!" : DONE[Math.floor(Math.random() * DONE.length)]);
     }
     closeDetail();
   });
@@ -1119,7 +1122,7 @@ function calendarFile() {
       `DTSTART;VALUE=DATE:${icsDay(date)}`,
       `DTEND;VALUE=DATE:${icsDay(addDays(date, 1))}`,
       `SUMMARY:${icsEscape(`${CONFIG.footEmoji || "🏃\u200d♀️"} ${session.title}`)}`,
-      `DESCRIPTION:${icsEscape(`${session[UNIT]} ${UNIT_LABEL} · ${z.name}\n${session.goal}\n\n${session.blocks.join("\n")}`)}`,
+      `DESCRIPTION:${icsEscape(`${nlNum(session[UNIT])} ${UNIT_LABEL} · ${z.name}\n${session.goal}\n\n${session.blocks.join("\n")}`)}`,
       "TRANSP:TRANSPARENT",
       "END:VEVENT",
     );
