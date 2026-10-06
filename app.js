@@ -432,7 +432,7 @@ function raceInfo() {
     PLAN[PLAN.length - 1];
   const rs = rw.sessions[rw.sessions.length - 1];
   const off = DAY_OFFSET[rs.day] ?? 6;
-  const date = new Date(schedStartMs() + ((rw.week - 1) * 7 + off) * 864e5);
+  const date = dateAtDay((rw.week - 1) * 7 + off); /* via dateAtDay: zomertijd-veilig */
   const days = Math.round((date.setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 864e5);
   return { days, name: rs.title.replace(/^[^\p{L}\d]+/u, "").trim() };
 }
