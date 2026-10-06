@@ -391,7 +391,9 @@ function computeStats() {
 
 function currentWeek() {
   const diff = Math.floor((Date.now() - schedStartMs()) / (7 * 864e5));
-  return Math.min(TOTAL_WEEKS, Math.max(1, diff + 1));
+  /* Uit PLAN afleiden, niet uit TOTAL_WEEKS: anders blijft de huidige week
+     hangen op de oude laatste week zodra er weken bijkomen. */
+  return Math.min(PLAN[PLAN.length - 1].week, Math.max(1, diff + 1));
 }
 
 /* ================================================================== *
